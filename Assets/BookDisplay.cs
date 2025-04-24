@@ -6,57 +6,66 @@ using System.Collections.Generic;
 public class BookDisplay : MonoBehaviour
 {
     [SerializeField] private TextMeshProUGUI bookText;
-    [SerializeField] private int maxLinesPerPage = 15; // Set this based on your UI size
-
+    [SerializeField] private int charactersPerPage = 800; // Number of characters per page (adjust as needed)
+    
     private List<string> pages = new List<string>();
     private int currentPage = 0;
 
-    void Start()
+    private void Start()
     {
-        // Load text from EpubLoader (or use placeholder for now)
-        string fullBookText = FindObjectOfType<EpubLoader>().LoadCleanedBookText();
+        StartCoroutine(ShowLoadingThenPaginate());
+    }
 
-        // Start coroutine to paginate text after layout
-        StartCoroutine(PaginateBook(fullBookText));
+    private IEnumerator ShowLoadingThenPaginate()
+    {
+        // Show loading message
+        bookText.text = "Loading EPUB...";
+        Canvas.ForceUpdateCanvases();
+        bookText.ForceMeshUpdate();
+
+        // Wait for the end of the frame to ensure it's rendered
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForSeconds(0.1f); // Optional buffer for stability
+
+        // Load and paginate the text
+        string fullBookText = FindObjectOfType<EpubLoader>().LoadCleanedBookText();
+        yield return StartCoroutine(PaginateBook(fullBookText));
     }
 
     private IEnumerator PaginateBook(string fullText)
     {
-        string[] words = fullText.Split(' ');
-        string currentText = "";
+        pages.Clear(); // Clear previous pages
+        bookText.text = ""; // Start with empty text
 
-        bookText.text = "";
-        yield return null; // Wait a frame so TMP layout updates
+        int totalChars = fullText.Length;
+        int pageStart = 0;
 
-        for (int i = 0; i < words.Length; i++)
+        // Start adding characters per page
+        while (pageStart < totalChars)
         {
-            string testText = currentText + words[i] + " ";
-            bookText.text = testText;
+            int pageEnd = Mathf.Min(pageStart + charactersPerPage, totalChars); // Ensure we don't go out of bounds
+            string pageText = fullText.Substring(pageStart, pageEnd - pageStart); // Extract page content
 
-            yield return null; // Wait a frame for TMP to update layout
+            pages.Add(pageText); // Add the page to the list
+            pageStart = pageEnd; // Move to the next set of characters for the next page
 
-            if (bookText.textInfo.lineCount > maxLinesPerPage)
-            {
-                pages.Add(currentText.TrimEnd());
-                currentText = words[i] + " ";
-            }
-            else
-            {
-                currentText = testText;
-            }
+            yield return null; // Wait for next frame to avoid performance hit
         }
 
-        if (!string.IsNullOrWhiteSpace(currentText))
-            pages.Add(currentText.TrimEnd());
-
+        // Once all pages are created, show the first page
         ShowPage(currentPage);
     }
 
     public void ShowPage(int index)
     {
+        // Display text of the selected page
         if (index >= 0 && index < pages.Count)
         {
             bookText.text = pages[index];
+        }
+        else
+        {
+            Debug.LogWarning("Invalid page index.");
         }
     }
 
@@ -78,6 +87,3 @@ public class BookDisplay : MonoBehaviour
         }
     }
 }
-
-
-
